@@ -1,14 +1,26 @@
 # Reproducible Research: Peer Assessment 1
 
-Todo: background and target for this document
+This document analyses data from a personal activity monitoring device. This device collects data at 5 minute intervals through out the day. The data consists of two months of data from an anonymous individual collected during the months of October and November, 2012 and include the number of steps taken in 5 minute intervals each day.
 
 ## Loading and preprocessing the data
 
 Dplyr package will be used for efficient data frame modifications.  
-Analysis uses the activity monitoring dataset.
+Analysis uses the activity monitoring dataset available from https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip.
 
 
 ```r
+    data <- read.csv("activity.csv")
+```
+
+## What is mean total number of steps taken per day?
+
+We start analysis by calculating mean and median of total steps per day. We also display histogram of total steps per day.
+
+Following code uses loaded activity dataset, calculates total steps per day and displays histogram. Dplyr package is used for efficient data frame manipulation.
+
+
+```r
+    ## Load dplyr package
     library(dplyr)
 ```
 
@@ -24,18 +36,6 @@ Analysis uses the activity monitoring dataset.
 ## 
 ##     intersect, setdiff, setequal, union
 ```
-
-```r
-    data <- read.csv("activity.csv")
-    ## TODO: Data processing
-```
-
-## What is mean total number of steps taken per day?
-
-We start analysis by calculating mean and median of total steps per day. We also display histogram of total steps per day.
-
-Following code uses loaded activity dataset, calculates total steps per day and displays histogram.
-
 
 ```r
     ## Create table showing steps per day and calculate total
@@ -79,13 +79,13 @@ Following code calculates average steps per time interval and displays it as lin
 
 
 ```r
-    ## Create table showing steps per interval
+    ## Create table showing average steps per interval
     interval_data = group_by(data, interval)
     average_per_interval <- summarise(interval_data, average = mean(steps, na.rm = TRUE))
     
     ## create plot
     plot(average_per_interval$interval, average_per_interval$average, type = "l", xlab = "Time intervals", 
-         ylab = "Steps taken", main = "Average steps taken per time interval")
+         ylab = "Average steps taken", main = "Average steps taken per time interval")
 ```
 
 ![](PA1_template_files/figure-html/averageStepsPerInterval-1.png) 
@@ -106,6 +106,115 @@ Next we find the time interval with highest average steps.
 
 ## Imputing missing values
 
+Next we analyse impact of missing values in the activity dataset. We will create new dataset where we replace
+missing values with average values per time interval. Then we create histogram of total steps per day and provide number of missing values replaced. Finally we calculate mean and median with missing values replaced and compare compare results to earlier results where missing values were removed.
+
+Following code replaces missing values with time interval averages, calculates daily totals and displays histogram.
+
+
+```r
+    ## Replace missing values within time intervals using averages calculated earlier
+    newdata <- data
+    missing_values <- 0
+    for(i in 1:nrow(newdata)) {
+        if(is.na(newdata[i, "steps"])) {
+            missing_values <- missing_values + 1
+            interval <- newdata[i, "interval"]
+            average <- average_per_interval[average_per_interval$interval == interval, "average"]
+            newdata[i, "steps"] <- average
+        }
+    }
+        
+    sprintf("Number of missing values in dataset: %s", missing_values)
+```
+
+```
+## [1] "Number of missing values in dataset: 2304"
+```
+
+```r
+    ## Create table showing steps per day
+    date_data2 = group_by(newdata, date)
+    steps_per_day2 <- summarise(date_data2, total = sum(steps))
+    
+    ## print histogram showing steps per day
+    hist (steps_per_day2$total, main="Histogram of total steps per day", xlab = "Total steps per day")
+```
+
+![](PA1_template_files/figure-html/missingValues-1.png) 
+
+Next we calculate mean and median.
+
+
+```r
+    ## Calculate mean
+    mean2 <- mean(steps_per_day2$total)
+    sprintf("Mean steps per day with missing values replaced: %s", mean2)
+```
+
+```
+## [1] "Mean steps per day with missing values replaced: 10766.1886792453"
+```
+
+```r
+    ## Calculate median
+    median2 <- median(steps_per_day2$total)
+    sprintf("Median steps per day with missing values replaced: %s", median2)
+```
+
+```
+## [1] "Median steps per day with missing values replaced: 10766.1886792453"
+```
+
+Mean with missing values is exactly same as mean with missing values replaced with interval averages. Conclusion 
+is that missing values are evenly distributed between dates.
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+
+In this part we compare average internval step amounts on weekdays and weekends. First we calculate interval averages for weekdays and weekdays and then display plot showing both.
+
+Following code creates new factor to show either weekday or weekend and then calculates interval averages
+for these factors on each interval.
+
+
+```r
+    ## Create new factor day and set its value to weekday or weekend
+    newdata$day <- factor(NA, levels=c("weekday", "weekend"))
+    for(i in 1:nrow(newdata))
+    {
+        day_of_week = weekdays(as.Date(newdata[i, "date"]))
+        if (day_of_week %in% c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday"))
+            newdata[i, "day"] <- "weekday"
+        else
+            newdata[i, "day"] <- "weekend"
+    }
+    ## Calculate interval averages for weekdays
+    weekday_data <- newdata[newdata$day == "weekday", ]
+    weekday_interval = group_by(weekday_data, interval)
+    weekday_average_per_interval <- summarise(weekday_interval, average = mean(steps), day = "weekday")
+    ## Calculate interval averages for weekends
+    weekend_data <- newdata[newdata$day == "weekend", ]
+    weekend_interval = group_by(weekend_data, interval)
+    weekend_average_per_interval <- summarise(weekend_interval, average = mean(steps), day = "weekend")
+    ## Combine datasets for plotting
+    combined_data <- rbind(weekday_average_per_interval, weekend_average_per_interval)
+```
+
+Next we plot the interval average result on weekends and weekdays using lattice package.
+
+
+```r
+    ## Use lattice library for drawings
+    library(lattice)
+    
+    ## Create plot displaying both weekdays & weekends
+    xyplot(average ~ interval | day, 
+           combined_data,
+           main="Average number of steps per intevals", ylab="Number of steps", 
+           xlab="Interval", layout=c(1,2), type="l")
+```
+
+![](PA1_template_files/figure-html/plotDayAverages-1.png) 
+
+
